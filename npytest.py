@@ -58,7 +58,7 @@ import struct
 #
 #
 arr = np.array(
-    [1.868,]
+    [47.299, 0.868, 0.999, 140.36, 155.2]
 )
 print(arr.dtype)
 # arr = arr.astype("float16")
