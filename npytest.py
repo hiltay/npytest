@@ -57,8 +57,10 @@ import struct
 #         # fp.write(chunk.tobytes('C'))
 #
 #
-arr = np.array(
-    [47.299, 0.868, 0.999, 140.36, 155.2]
+arr = np.array([
+    [1.66,11.3,13.8],
+    [1.66,11.3,13.8],
+    ]
 )
 print(arr.dtype)
 # arr = arr.astype("float16")

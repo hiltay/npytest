@@ -14,7 +14,7 @@ fn use_fixed_point(num: f32) -> bool {
 /// xxxx xxxx xxxx xx|xx xxxx xxxx xxxx|xxxx xxxx xxxx xx|xx xxxx xxxx xxxx
 /// 指数位4
 /// 1110表示使用定点表示，整数部分为0
-/// 1111表示异常数据（nan）
+/// 1111表示异常数据（nan），整数部分为0
 /// 小数位10
 fn trans_f32_to_half_float(nums: Vec<f32>) -> [u8; 7] {
     let mut bund: [u8; 7] = [0; 7];
@@ -24,6 +24,9 @@ fn trans_f32_to_half_float(nums: Vec<f32>) -> [u8; 7] {
         bund[0] += 0xe0;
         bund[0] += ((num1 & 0x03c0) >> 6) as u8;
         bund[1] += ((num1 & 0x003f) << 2) as u8;
+    // 处理nan
+    } else if nums[0].is_nan() {
+        bund[0] += 0xf0;
     } else {
         let num1 = nums[0].to_bits();
 
@@ -37,6 +40,9 @@ fn trans_f32_to_half_float(nums: Vec<f32>) -> [u8; 7] {
         bund[2] += 0x80;
         bund[2] += ((num2 & 0x03f0) >> 4) as u8;
         bund[3] += ((num2 & 0x000f) << 4) as u8;
+    } else if nums[1].is_nan() {
+        bund[1] += 0x03;
+        bund[2] += 0xc0;
     } else {
         let num2 = nums[1].to_bits();
 
@@ -50,6 +56,8 @@ fn trans_f32_to_half_float(nums: Vec<f32>) -> [u8; 7] {
         bund[3] += 0x0e;
         bund[4] += ((num3 & 0x03fc) >> 2) as u8;
         bund[5] += ((num3 & 0x0003) << 6) as u8;
+    } else if nums[2].is_nan() {
+        bund[3] += 0x0f;
     } else {
         let num3 = nums[2].to_bits();
         bund[3] += ((((num3 & EXP_M) >> 23) - 127) & 0x0000000f) as u8;
@@ -63,6 +71,8 @@ fn trans_f32_to_half_float(nums: Vec<f32>) -> [u8; 7] {
         bund[5] += 0x38;
         bund[5] += ((num4 & 0x0300) >> 8) as u8;
         bund[6] += (num4 & 0x00ff) as u8
+    } else if nums[3].is_nan() {
+        bund[5] += 0x3c;
     } else {
         let num4 = nums[3].to_bits();
         bund[5] += (((((num4 & EXP_M) >> 23) - 127) & 0x0000000f) << 2) as u8;
@@ -117,6 +127,7 @@ fn parse_npy_file(bytes: &Vec<u8>) -> (Vec<usize>, usize, Vec<u8>) {
 
     // println!("总数据：{}", total_data_num);
     let data = &bytes[(10 + header_data_len) as usize..];
+    // println!("{:?}", data);
     let mut result = Vec::new();
     for i in data {
         result.push(*i);
@@ -133,8 +144,8 @@ fn parse_npy_file(bytes: &Vec<u8>) -> (Vec<usize>, usize, Vec<u8>) {
 /// - 后16位为列
 /// 之后为数据段，它们永远是56的整数倍
 
-fn main() {
-    let mut npyfile = File::open("./b_i.npy").unwrap();
+fn trans_main(filename: &str) {
+    let mut npyfile = File::open(filename).unwrap();
     let mut buffer = Vec::new();
     let total_bytes = npyfile.read_to_end(&mut buffer).unwrap();
     // println!("{}", total_bytes);
@@ -147,10 +158,12 @@ fn main() {
         let data = &result[i * 4..i * 4 + 4];
         let bytes: [u8; 4] = data.try_into().expect("slice with incorrect length");
         let num = u32::from_le_bytes(bytes);
+        // println!("{}", num);
         unsafe {
             let fnum = std::mem::transmute::<u32, f32>(num);
             container.push(fnum);
         }
+        // println!("{:?}", container);
         if container.len() == 4 {
             parsed_data.push(container.clone());
             container.clear();
@@ -163,7 +176,7 @@ fn main() {
         parsed_data.push(container);
     }
     // println!("{:?}", parsed_data);
-    let mut file = File::create("test.bin").unwrap();
+    let mut file = File::create(format!("{}.bin", filename.split_once(".").unwrap().0)).unwrap();
     // 定义一个版本，当前为1
     let version: [u8; 1] = [1];
 
@@ -186,4 +199,9 @@ fn main() {
         // println!("bund {:?}", bund);
         file.write_all(&bund).unwrap();
     }
+}
+
+fn main() {
+
+    trans_main("test.npy")
 }
