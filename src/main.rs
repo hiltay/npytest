@@ -1,7 +1,8 @@
 // use ndarray_npy;
 use regex::Regex;
 use std::fs::{self, File};
-use std::io::{self, *};
+use std::io::*;
+use std::path::{PathBuf, Path};
 // const SIGN_M: u32 = 0x80000000;
 const EXP_M: u32 = 0x7f800000;
 const SIG_M: u32 = 0x007fffff;
@@ -10,12 +11,15 @@ const SIG_M: u32 = 0x007fffff;
 fn use_fixed_point(num: f32) -> bool {
     num < 1.0
 }
+
+/// 数据布局
 ///     1          2        3         4         5         6         7
 /// xxxx xxxx xxxx xx|xx xxxx xxxx xxxx|xxxx xxxx xxxx xx|xx xxxx xxxx xxxx
 /// 指数位4
 /// 1110表示使用定点表示，整数部分为0
-/// 1111表示异常数据（nan），整数部分为0
+/// 1111表示异常数据（nan，或小于0的值），整数部分为0
 /// 小数位10
+/// 可表示范围 0. - 16383.
 fn trans_f32_to_half_float(nums: Vec<f32>) -> [u8; 7] {
     let mut bund: [u8; 7] = [0; 7];
 
@@ -82,7 +86,7 @@ fn trans_f32_to_half_float(nums: Vec<f32>) -> [u8; 7] {
     bund
 }
 
-struct Npyfile {
+struct _Npyfile {
     // 头部，6字节，分别是：\x93 N U M P Y
     header: [u8; 6],
     // 主版本号，例如 \x01
@@ -144,10 +148,10 @@ fn parse_npy_file(bytes: &Vec<u8>) -> (Vec<usize>, usize, Vec<u8>) {
 /// - 后16位为列
 /// 之后为数据段，它们永远是56的整数倍
 
-fn trans_main(filename: &str) {
-    let mut npyfile = File::open(filename).unwrap();
+fn trans_main(path: &Path) {
+    let mut npyfile = File::open(path).unwrap();
     let mut buffer = Vec::new();
-    let total_bytes = npyfile.read_to_end(&mut buffer).unwrap();
+    let _total_bytes = npyfile.read_to_end(&mut buffer).unwrap();
     // println!("{}", total_bytes);
     // println!("{:?}", buffer.clone());
     let (shape_vec, total_data_num, result) = parse_npy_file(&buffer);
@@ -176,7 +180,7 @@ fn trans_main(filename: &str) {
         parsed_data.push(container);
     }
     // println!("{:?}", parsed_data);
-    let mut file = File::create(format!("{}.bin", filename.split_once(".").unwrap().0)).unwrap();
+    let mut file = File::create(path.with_extension("bin")).unwrap();
     // 定义一个版本，当前为1
     let version: [u8; 1] = [1];
 
@@ -202,6 +206,24 @@ fn trans_main(filename: &str) {
 }
 
 fn main() {
-
-    trans_main("test.npy")
+    // let entries = fs::read_dir(".").unwrap();
+    // let mut i_files = Vec::new();
+    // for entry in entries {
+    //     if let Ok(en) = entry {
+    //         let filename = en.file_name();
+    //         let filename = filename.to_str().unwrap_or("");
+    //         if filename.starts_with("a_i.npy")
+    //             || filename.starts_with("b_i.npy")
+    //             || filename.starts_with("c_i.npy")
+    //         {
+                
+    //             i_files.push(en.path());
+    //         }
+    //     }
+    // }
+    // println!("{:?}", i_files);
+    // for filename in i_files.iter() {
+    //     trans_main(filename)
+    // }
+    trans_main(Path::new("test.npy"))
 }
